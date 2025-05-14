@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>OBJLoader with Material Picker</title>
+  <style>
+    .controls {
+      position: fixed;
+      top: 20px;
+      left: 20px;
+      background: rgba(255,255,255,0.8);
+      padding: 15px;
+      border-radius: 8px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    }
+    .controls label { display: block; margin: 8px 0; }
+  </style>
+</head>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@v0.170/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@v0.170/examples/jsm/"
+  }
+}
+</script>
+
+<body>
+  <div class="controls">
+    <label>
+      选择颜色：
+      <input type="color" value="#00ff88" id="colorPicker">
+    </label>
+    <label>
+      材质类型：
+      <select id="materialSelect">
+        <option value="Phong">Phong 材质</option>
+        <option value="Basic">Basic 材质</option>
+        <option value="Standard">Standard 材质</option>
+      </select>
+    </label>
+  </div>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+    let currentMaterialType = 'Phong';
+    let currentColor = 0x00ff88;
+    const modelMeshes = [];
+
+    // --- three.js setup ----
+    const scene    = new THREE.Scene();
+    const camera   = new THREE.PerspectiveCamera(30, window.innerWidth/window.innerHeight, 1, 500);
+    camera.position.set(0, 20, 50);
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    document.body.appendChild(renderer.domElement);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.minDistance = 10;
+    controls.maxDistance = 200;
+    controls.zoomSpeed   = 2.5;
+
+    scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+    const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+    dirLight.position.set(5, 5, 5);
+    scene.add(dirLight);
+
+    function createMaterial(type = currentMaterialType, color = currentColor) {
+      switch (type) {
+        case 'Basic':
+          return new THREE.MeshBasicMaterial({ color });
+        case 'Standard':
+          return new THREE.MeshStandardMaterial({ color, metalness: 0.5, roughness: 0.5 });
+        case 'Phong':
+        default:
+          return new THREE.MeshPhongMaterial({ color, shininess: 100 });
+      }
+    }
+
+    const loader = new OBJLoader();
+    loader.load('http://localhost:4000/assets/model.obj', object => {
+      object.traverse(child => {
+        if (child.isMesh) {
+          child.material = createMaterial();
+          modelMeshes.push(child);
+        }
+      });
+      scene.add(object);
+    });
+
+    function updateMaterials() {
+      modelMeshes.forEach(mesh => {
+        mesh.material.dispose();
+        mesh.material = createMaterial();
+      });
+    }
+
+    function handleColorChange(hexString) {
+      currentColor = parseInt(hexString.replace('#','0x'));
+      updateMaterials();
+    }
+
+    function handleMaterialChange(type) {
+      currentMaterialType = type;
+      updateMaterials();
+    }
+
+    // --- wire up UI controls ---
+    document.getElementById('colorPicker')
+            .addEventListener('input', e => handleColorChange(e.target.value));
+    document.getElementById('materialSelect')
+            .addEventListener('change', e => handleMaterialChange(e.target.value));
+
+    // --- resize + render loop ---
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth/window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    (function animate() {
+      requestAnimationFrame(animate);
+      controls.update();
+      renderer.render(scene, camera);
+    })();
+  </script>
+</body>
+</html>
